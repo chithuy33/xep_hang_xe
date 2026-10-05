@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lenovo AI 3D Intelligent Loading System - Sequential Edition</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body { background-color: #f3f4f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .header-banner { background: linear-gradient(135deg, #2c3e50 0%, #000000 100%); color: white; padding: 22px 0; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .card { border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; border-radius: 8px; }
+        .card-header { background-color: #ffffff; border-bottom: 2px solid #e5e7eb; font-weight: bold; color: #1f2937; }
+        #canvas-container { width: 100%; height: 550px; background-color: #0d0e12; border-radius: 8px; overflow: hidden; position: relative; border: 1px solid #1f2937; }
+        .threed-badge { position: absolute; top: 15px; left: 15px; background: rgba(0, 255, 128, 0.15); border: 1px solid #00ff80; color: #00ff80; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-family: monospace; z-index: 10; font-weight: bold; }
+        .kpi-box { padding: 15px; border-radius: 8px; text-align: center; color: white; font-weight: bold; }
+        .kpi-t1 { background: linear-gradient(45deg, #1f2937, #4b5563); border: 1px solid #6b7280; }
+        .kpi-weight { background: linear-gradient(45deg, #10b981, #059669); }
+        .step-badge { width: 24px; height: 24px; background-color: #2c3e50; color: white; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-weight: bold; font-size: 11px; }
+    </style>
+</head>
+<body>
+
+    <div class="header-banner text-center">
+        <h1 class="fw-bold">3D INTELLIGENT LOADING SYSTEM</h1>
+        <p class="lead mb-0">Hệ thống bốc dỡ trật tự: Mô phỏng xếp hàng tuần tự từng kiện trực quan</p>
+    </div>
+
+    <div class="container-fluid px-4">
+        <div class="row">
+            
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-header">1. KÍCH THƯỚC KHÔNG GIAN CHỨA MẸ</div>
+                    <div class="card-body py-3">
+                        <div class="row g-2">
+                            <div class="col-4"><label class="form-label small mb-0 fw-bold">Dài (L - m)</label><input type="number" id="cL" class="form-control" value="6.0" step="0.1"></div>
+                            <div class="col-4"><label class="form-label small mb-0 fw-bold">Rộng (W - m)</label><input type="number" id="cW" class="form-control" value="2.35" step="0.1"></div>
+                            <div class="col-4"><label class="form-label small mb-0 fw-bold">Cao (H - m)</label><input type="number" id="cH" class="form-control" value="2.4"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header">2. TẢI FILE DANH SÁCH KIỆN HÀNG (.CSV)</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Hệ thống sẽ chạy từng bước và thêm từng thùng hàng vào container:</label>
+                            <input class="form-control" type="file" id="csvFileInput" accept=".csv">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Tốc độ xếp hàng (ms / kiện):</label>
+                            <input type="number" id="stepSpeed" class="form-control" value="300" min="50">
+                        </div>
+                        <button onclick="processUploadedFile()" class="btn btn-dark w-100 fw-bold py-2 shadow-sm" style="background-color: #2c3e50;">
+                            BẮT ĐẦU MÔ PHỎNG XẾP TUẦN TỰ
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-2">
+                        <div class="kpi-box kpi-t1 shadow-sm">
+                            <div class="small text-uppercase text-gray-300">Thể tích hiện tại / Tổng thể tích</div>
+                            <div class="display-6 fw-bold" id="kpi-efficiency">0.0 %</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <div class="kpi-box kpi-weight shadow-sm">
+                            <div class="small text-uppercase">Tiến độ sắp xếp hàng hóa</div>
+                            <div class="display-6 fw-bold" id="kpi-count">0 / 0 Kiện gọn gàng</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>3. MÔ HÌNH XẾP HÀNG PHÂN THEO THỨ TỰ TRỰC QUAN</span>
+                        <span class="badge bg-secondary" id="engine-status">Chờ file dữ liệu...</span>
+                    </div>
+                    <div class="card-body p-2">
+                        <div id="canvas-container">
+                            <div class="threed-badge" id="live-badge">● SYSTEM READY</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div> 
+
+        <div class="row mt-2">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header">4. LỊCH TRÌNH VÀ VỊ TRÍ ĐẶT THÙNG THỜI GIAN THỰC</div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+                            <table class="table table-striped table-hover mb-0 align-middle">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 70px;">Stt</th>
+                                        <th>Tên kiện hàng</th>
+                                        <th>Thể tích ($m^3$)</th>
+                                        <th>Kích thước gốc (D x R x C)</th>
+                                        <th>Kích thước sau xoay (X x Z x Y)</th>
+                                        <th>Điểm định vị mặt sàn (X, Y, Z)</th>
+                                        <th>Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="report-table-body">
+                                    <tr><td colspan="7" class="text-center text-muted py-4">Hệ thống đang đợi file dữ liệu để lập sơ đồ ngăn nắp...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, controls;
+        let containerMesh = null;
+        let packageMeshes = [];
+        let parsedDataRaw = [];
+        let simulationInterval = null; // Quản lý bộ đếm thời gian chạy từng kiện
+
+        function init3DSpace() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111216);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(7, 6, 8);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            dirLight.position.set(10, 40, 20);
+            scene.add(dirLight);
+
+            scene.add(new THREE.GridHelper(40, 40, 0x374151, 0x1f2937));
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+
+        function processUploadedFile() {
+            // Xóa bộ mô phỏng cũ nếu đang chạy dữ liệu trước đó
+            if(simulationInterval) clearInterval(simulationInterval);
+
+            const fileInput = document.getElementById('csvFileInput');
+            const file = fileInput.files[0];
+            if (!file) { alert("Vui lòng nạp file dữ liệu thùng hàng!"); return; }
+
+            const reader = new FileReader();
+            reader.onload = function (e) { parseCSVToData(e.target.result); };
+            reader.readAsText(file);
+        }
+
+        function parseCSVToData(text) {
+            const lines = text.split('\n');
+            parsedDataRaw = [];
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                const columns = line.split(',');
+                if (columns.length >= 5) {
+                    parsedDataRaw.push({
+                        name: columns[0].trim(),
+                        l: parseFloat(columns[1]),
+                        w: parseFloat(columns[2]),
+                        h: parseFloat(columns[3]),
+                        qty: parseInt(columns[4])
+                    });
+                }
+            }
+            executeOrderedPackingAISequential();
+        }
+
+        function checkIntersect(boxA, boxB) {
+            return (boxA.minX < boxB.maxX && boxA.maxX > boxB.minX) &&
+                   (boxA.minY < boxB.maxY && boxA.maxY > boxB.minY) &&
+                   (boxA.minZ < boxB.maxZ && boxA.maxZ > boxB.minZ);
+        }
+
+        // --- BỘ NÃO AI PHÁT TRIỂN THEO PHƯƠNG THỨC CHẠY TUẦN TỰ (SEQUENTIAL MOCKING) ---
+        function executeOrderedPackingAISequential() {
+            const cL = parseFloat(document.getElementById('cL').value) || 1;
+            const cW = parseFloat(document.getElementById('cW').value) || 1;
+            const cH = parseFloat(document.getElementById('cH').value) || 1;
+            const stepSpeed = parseInt(document.getElementById('stepSpeed').value) || 300;
+
+            // Làm mới môi trường 3D
+            if(containerMesh) scene.remove(containerMesh);
+            packageMeshes.forEach(mesh => scene.remove(mesh));
+            packageMeshes = [];
+
+            // Vẽ Container rỗng
+            const containerGeo = new THREE.BoxGeometry(cL, cH, cW);
+            containerMesh = new THREE.LineSegments(new THREE.EdgesGeometry(containerGeo), new THREE.LineBasicMaterial({ color: 0x9ca3af, linewidth: 2 }));
+            containerMesh.position.set(cL / 2, cH / 2, cW / 2);
+            scene.add(containerMesh);
+
+            // Gom tất cả các kiện đơn lẻ vào hàng đợi (Queue)
+            let queuePackages = [];
+            const colorPalette = [0x2563eb, 0xdc2626, 0x16a34a, 0xd97706, 0x7c3aed, 0x06b6d4, 0xdb2777, 0x4b5563];
+            
+            parsedDataRaw.forEach((item, index) => {
+                const color = colorPalette[index % colorPalette.length];
+                const vol = item.l * item.w * item.h;
+                for(let q = 0; q < item.qty; q++) {
+                    queuePackages.push({ name: item.name, l: item.l, w: item.w, h: item.h, volume: vol, color: color });
+                }
+            });
+
+            // Sắp xếp trật tự từ lớn đến nhỏ theo thể tích thực
+            queuePackages.sort((a, b) => b.volume - a.volume);
+
+            let packedBoxesList = [];
+            let totalPackedVolume = 0;
+            let successCount = 0;
+            let currentPackageIndex = 0; // Con trỏ xử lý từng kiện
+
+            document.getElementById('report-table-body').innerHTML = "";
+            document.getElementById('engine-status').innerText = "Đang chạy mô phỏng...";
+            document.getElementById('engine-status').className = "badge bg-warning text-dark";
+            document.getElementById('live-badge').innerText = "● LOADING IN PROGRESS...";
+            document.getElementById('live-badge').style.color = "#ffaa00";
+            document.getElementById('live-badge').style.borderColor = "#ffaa00";
+
+            // Bắt đầu vòng lặp thời gian thực xếp từng kiện
+            simulationInterval = setInterval(() => {
+                if (currentPackageIndex >= queuePackages.length) {
+                    // Đã xử lý hết hàng đợi
+                    clearInterval(simulationInterval);
+                    document.getElementById('engine-status').innerText = "Hoàn thành xếp hàng!";
+                    document.getElementById('engine-status').className = "badge bg-success";
+                    document.getElementById('live-badge').innerText = "● SIMULATION FINISHED";
+                    document.getElementById('live-badge').style.color = "#00ff80";
+                    document.getElementById('live-badge').style.borderColor = "#00ff80";
+                    return;
+                }
+
+                const pkg = queuePackages[currentPackageIndex];
+                
+                // Khởi tạo các điểm neo không gian từ các hộp đã được xếp trước đó
+                let candidatePoints = [{x: 0, y: 0, z: 0}];
+                packedBoxesList.forEach(b => {
+                    candidatePoints.push({x: b.maxX, y: b.minY, z: b.minZ}); 
+                    candidatePoints.push({x: b.minX, y: b.minY, z: b.maxZ}); 
+                    candidatePoints.push({x: b.minX, y: b.maxY, z: b.minZ}); 
+                });
+
+                // Ưu tiên xếp sàn dưới trước (Y), từ trong ra ngoài (Z, rồi tới X)
+                candidatePoints.sort((a, b) => {
+                    if (Math.abs(a.y - b.y) > 0.001) return a.y - b.y;
+                    if (Math.abs(a.z - b.z) > 0.001) return a.z - b.z;
+                    return a.x - b.x;
+                });
+
+                let bestPlacement = null;
+
+                for (let pt of candidatePoints) {
+                    const orientations = [
+                        { x: pkg.l, y: pkg.h, z: pkg.w }, // Đứng chuẩn
+                        { x: pkg.l, y: pkg.w, z: pkg.h }, // Nghiêng hông
+                        { x: pkg.w, y: pkg.h, z: pkg.l }, // Ngang 90 độ
+                        { x: pkg.w, y: pkg.l, z: pkg.h }, 
+                        { x: pkg.h, y: pkg.l, z: pkg.w }, 
+                        { x: pkg.h, y: pkg.w, z: pkg.l }  
+                    ];
+
+                    for (let ori of orientations) {
+                        let testBox = {
+                            minX: pt.x, maxX: pt.x + ori.x,
+                            minY: pt.y, maxY: pt.y + ori.y,
+                            minZ: pt.z, maxZ: pt.z + ori.z
+                        };
+
+                        if (testBox.maxX > cL + 0.001 || testBox.maxY > cH + 0.001 || testBox.maxZ > cW + 0.001) {
+                            continue;
+                        }
+
+                        let collision = false;
+                        for (let pb of packedBoxesList) {
+                            if (checkIntersect(testBox, pb)) { 
+                                collision = true; 
+                                break; 
+                            }
+                        }
+
+                        if (!collision) {
+                            if (!bestPlacement || (pt.y + ori.y) < (bestPlacement.pt.y + bestPlacement.ori.y)) {
+                                bestPlacement = { pt: pt, ori: ori, box: testBox };
+                            }
+                        }
+                    }
+                    if (bestPlacement && bestPlacement.pt.y === pt.y) {
+                        break;
+                    }
+                }
+
+                let rowHTML = "";
+                // Thực thi đặt hàng lên giao diện 3D và Bảng dữ liệu ngay lập tức
+                if (bestPlacement) {
+                    const { pt, ori, box } = bestPlacement;
+                    packedBoxesList.push(box);
+
+                    // Tạo khối hình học 3D cho riêng kiện hàng này
+                    const boxGeo = new THREE.BoxGeometry(ori.x - 0.005, ori.y - 0.005, ori.z - 0.005);
+                    const boxMat = new THREE.MeshPhongMaterial({ color: pkg.color, opacity: 0.9, transparent: true, shininess: 30 });
+                    const boxMesh = new THREE.Mesh(boxGeo, boxMat);
+                    
+                    boxMesh.position.set(pt.x + ori.x/2, pt.y + ori.y/2, pt.z + ori.z/2);
+                    scene.add(boxMesh);
+                    packageMeshes.push(boxMesh);
+
+                    boxMesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), new THREE.LineBasicMaterial({ color: 0x000000 })));
+
+                    totalPackedVolume += pkg.volume;
+                    successCount++;
+
+                    rowHTML = `
+                        <tr>
+                            <td><span class="step-badge">${successCount}</span></td>
+                            <td><b>${pkg.name}</b></td>
+                            <td><code class="text-primary">${pkg.volume.toFixed(3)} $m^3$</code></td>
+                            <td><small class="text-muted">${pkg.l}m x ${pkg.w}m x ${pkg.h}m</small></td>
+                            <td><span class="badge bg-dark">${ori.x.toFixed(2)}m x ${ori.z.toFixed(2)}m x ${ori.y.toFixed(2)}m</span></td>
+                            <td><code>X: ${pt.x.toFixed(2)} | Y: ${pt.y.toFixed(2)} | Z: ${pt.z.toFixed(2)}</code></td>
+                            <td><span class="badge bg-success">Đã xếp vào</span></td>
+                        </tr>`;
+                } else {
+                    rowHTML = `
+                        <tr class="table-light text-muted">
+                            <td><span class="step-badge bg-secondary">--</span></td>
+                            <td>${pkg.name}</td>
+                            <td><code>${pkg.volume.toFixed(3)} $m^3$</code></td>
+                            <td><small>${pkg.l}m x ${pkg.w}m x ${pkg.h}m</small></td>
+                            <td><span class="badge bg-danger">Không thể xoay vừa</span></td>
+                            <td><code>Không có chỗ chứa</code></td>
+                            <td><span class="badge bg-danger">Bị nghẽn</span></td>
+                        </tr>`;
+                }
+
+                // Append dòng mới vào bảng (hiện tuần tự) và tự động cuộn xuống dưới cùng của bảng
+                const tableBody = document.getElementById('report-table-body');
+                tableBody.insertAdjacentHTML('beforeend', rowHTML);
+                tableBody.parentElement.scrollTop = tableBody.parentElement.scrollHeight;
+
+                // Cập nhật liên tục Dashboard KPI
+                const totalContainerVolume = cL * cW * cH;
+                let eff = (totalPackedVolume / totalContainerVolume) * 100;
+                document.getElementById('kpi-efficiency').innerText = (eff > 100 ? 100 : eff).toFixed(1) + " %";
+                document.getElementById('kpi-count').innerText = `${successCount} / ${queuePackages.length} Kiện hàng`;
+
+                currentPackageIndex++; // Chuyển sang kiện tiếp theo ở vòng lặp sau
+            }, stepSpeed);
+
+            controls.target.set(cL / 2, cH / 2, cW / 2);
+        }
+
+        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        window.onload = init3DSpace;
+    </script>
+</body>
+</html>
